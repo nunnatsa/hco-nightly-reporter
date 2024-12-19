@@ -1,4 +1,4 @@
-module github.com/nunnatsa/hco-nightly-reporter
+module github.com/nunnatsa/automation/hco-nightly-reporter/automation/slack-bot
 
 go 1.23
 
