@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
-	prowjobsv1 "sigs.k8s.io/prow/pkg/apis/prowjobs/v1"
 )
 
 const (
@@ -64,7 +63,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	blocks, job, err := generateMessage(ctx)
+	blocks, jobURL, err := generateMessage(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -73,14 +72,14 @@ func main() {
 	err = sendMessageToSlackChannel(blocks)
 
 	if err != nil {
-		writeSendError(err, job)
+		writeSendError(err, jobURL)
 		os.Exit(1)
 	}
 
 	fmt.Println("Successfully sent message to the channel")
 }
 
-func writeSendError(err error, job *prowjobsv1.ProwJob) {
+func writeSendError(err error, jobURL string) {
 	fmt.Fprintln(os.Stderr, "failed to send the message to the channel; ", err.Error())
 	if serr, ok := err.(slack.SlackErrorResponse); ok {
 		for _, msg := range serr.ResponseMetadata.Messages {
@@ -88,36 +87,36 @@ func writeSendError(err error, job *prowjobsv1.ProwJob) {
 		}
 	}
 
-	if job != nil {
-		fmt.Fprintln(os.Stderr, "job URL: ", job.Status.URL)
+	if len(jobURL) > 0 {
+		fmt.Fprintln(os.Stderr, "job URL: ", jobURL)
 	}
 }
 
-func generateMessage(ctx context.Context) ([]slack.Block, *prowjobsv1.ProwJob, error) {
+func generateMessage(ctx context.Context) ([]slack.Block, string, error) {
 	client := http.DefaultClient
 	client.Timeout = time.Second * 3
 
 	latestBuild, err := getLatestBuild(ctx, client)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to latest job ID; %s", err.Error())
+		return nil, "", fmt.Errorf("failed to latest job ID; %s", err.Error())
 	}
 
 	buildStatus, err := getBuildStatus(ctx, latestBuild)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch the build status; %s", err.Error())
+		return nil, "", fmt.Errorf("failed to fetch the build status; %s", err.Error())
 	}
 
 	buildTime := time.Unix(buildStatus.Timestamp, 0).UTC()
 	if time.Since(buildTime).Hours() > 24 {
-		return generateNoBuildMessage(buildTime), nil, nil
+		return generateNoBuildMessage(buildTime), "", nil
 	}
 
-	job, err := getJob(ctx, latestBuild)
+	jobURL, err := getJob(ctx, latestBuild)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch the job info; %s", err.Error())
+		return nil, "", fmt.Errorf("failed to fetch the job info; %s", err.Error())
 	}
 
-	return generateStatusMessage(buildStatus, job.Status), job, nil
+	return generateStatusMessage(buildStatus, jobURL), jobURL, nil
 }
 
 func sendMessageToSlackChannel(blocks []slack.Block) error {
@@ -165,7 +164,7 @@ func generateNoBuildMessage(buildTime time.Time) []slack.Block {
 	}
 }
 
-func generateStatusMessage(buildStatus *finished, jobStatus prowjobsv1.ProwJobStatus) []slack.Block {
+func generateStatusMessage(buildStatus *finished, jobURL string) []slack.Block {
 	var status, emojie string
 	if buildStatus.Passed {
 		status = "passed"
@@ -200,11 +199,7 @@ func generateStatusMessage(buildStatus *finished, jobStatus prowjobsv1.ProwJobSt
 			slack.NewRichTextSectionTextElement(
 				"Job Address: ", nil,
 			),
-			slack.NewRichTextSectionLinkElement(
-				jobStatus.URL,
-				jobStatus.URL,
-				nil,
-			),
+			slack.NewRichTextSectionLinkElement(jobURL, jobURL, nil),
 		)),
 	}
 
@@ -256,24 +251,29 @@ func getBuildStatus(ctx context.Context, latestBuild string) (*finished, error) 
 	return f, nil
 }
 
-func getJob(ctx context.Context, latestBuild string) (*prowjobsv1.ProwJob, error) {
+func getJob(ctx context.Context, latestBuild string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(jobURLTemplate, latestBuild), nil)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	jobResp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	defer jobResp.Body.Close()
 
-	job := &prowjobsv1.ProwJob{}
+	//job := &prowjobsv1.ProwJob{}
+	job := struct {
+		Status struct {
+			URL string `json:"url,omitempty"`
+		} `json:"status"`
+	}{}
 	dec := json.NewDecoder(jobResp.Body)
 	err = dec.Decode(&job)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return job, nil
+	return job.Status.URL, nil
 }
