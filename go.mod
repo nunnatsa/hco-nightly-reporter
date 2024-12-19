@@ -1,6 +1,8 @@
 module github.com/nunnatsa/hco-nightly-reporter
 
-go 1.22.7
+go 1.23
+
+toolchain go1.23.4
 
 require (
 	github.com/slack-go/slack v0.15.0
