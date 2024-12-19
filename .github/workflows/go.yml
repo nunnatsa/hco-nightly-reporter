@@ -5,10 +5,9 @@ name: Go
 
 on:
   schedule:
-    - cron: '25 7 * * *'
-      branches: [ "main" ]
+    - cron: '30 7 * * *'
+    - cron: '30 9 * * *'
   workflow_dispatch:
-    branches: [ "main" ]
 
 defaults:
   run:
@@ -31,6 +30,7 @@ jobs:
 
     - name: debug
       run: |
+        date
         pwd
         ls -la
 
