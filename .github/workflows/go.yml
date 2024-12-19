@@ -23,3 +23,11 @@ jobs:
 
     - name: Build
       run: go build -v ./...
+
+    - name: run
+      env:
+        HCO_CHANNEL_ID: ${{ secrets.HCO_CHANNEL_ID }}
+        HCO_GROUP_ID: ${{ secrets.HCO_GROUP_ID }}
+        HCO_REPORTER_SLACK_TOKEN: ${{ secrets.HCO_REPORTER_SLACK_TOKEN }}
+      run:
+        ./hco-nightly-reporter
