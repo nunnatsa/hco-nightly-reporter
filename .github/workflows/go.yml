@@ -4,9 +4,10 @@
 name: Go
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  schedule:
+    - cron: '0 5 * * *'
+      branches: [ "main" ]
+  workflow_dispatch:
     branches: [ "main" ]
 
 defaults:
