@@ -1,8 +1,8 @@
-name: nightly-build slack bot
+name: Nightly-Build slack bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+  - cron: '*/5 * * * *'
   workflow_dispatch:
 
 defaults:
