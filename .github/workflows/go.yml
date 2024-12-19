@@ -28,7 +28,12 @@ jobs:
     - name: Build
       run: go build -v .
 
-    - name: run
+    - name: debug
+      run: |
+        pwd
+        ls -la
+
+    - name: run the bot
       env:
         HCO_CHANNEL_ID: ${{ secrets.HCO_CHANNEL_ID }}
         HCO_GROUP_ID: ${{ secrets.HCO_GROUP_ID }}
