@@ -136,10 +136,9 @@ func generateMsgHeader() slack.Block {
 
 func generateMentionBlock(blockId string) slack.Block {
 	return slack.NewRichTextBlock(blockId, slack.NewRichTextSection(
-		slack.NewRichTextSectionTextElement(
-			"^^^ ", nil,
-		),
-		slack.NewRichTextSectionUserElement(groupId, nil),
+		slack.NewRichTextSectionUserElement(groupId, &slack.RichTextSectionTextStyle{
+			Bold: true,
+		}),
 	))
 }
 
@@ -152,11 +151,16 @@ func generateNoBuildMessage(buildTime time.Time) []slack.Block {
 		)),
 		slack.NewRichTextBlock("2", slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement(
-				fmt.Sprintf("no new build today; last build was at %v", buildTime.Format(timeFormat)),
+				"No new build today", nil,
+			),
+		)),
+		slack.NewRichTextBlock("3", slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement(
+				fmt.Sprintf("Last build was at %v", buildTime.Format(timeFormat)),
 				nil,
 			),
 		)),
-		generateMentionBlock("3"),
+		generateMentionBlock("4"),
 		slack.NewDividerBlock(),
 	}
 }
