@@ -11,7 +11,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./automation/slack-bot
+    working-directory: ./automation/hco-nightly-reporter
 
 jobs:
 
@@ -23,7 +23,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version-file: ./automation/slack-bot/go.mod
+        go-version-file: ./automation/hco-nightly-reporter/go.mod
 
     - name: Build
       run: go build -v .
