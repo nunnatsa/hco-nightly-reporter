@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -131,7 +132,7 @@ func generateJobMessage(ctx context.Context, client *http.Client, job jobConfig)
 		return nil, false, fmt.Errorf("failed to get latest job ID; %s", err.Error())
 	}
 
-	buildStatus, err := getBuildStatus(ctx, latestBuild, job.baseURL)
+	buildStatus, err := getBuildStatus(ctx, client, latestBuild, job.baseURL)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to fetch the build status; %s", err.Error())
 	}
@@ -141,7 +142,7 @@ func generateJobMessage(ctx context.Context, client *http.Client, job jobConfig)
 		return generateNoBuildMessage(job.name, buildTime), true, nil
 	}
 
-	jobURL, err := getJob(ctx, latestBuild, job.baseURL)
+	jobURL, err := getJob(ctx, client, latestBuild, job.baseURL)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to fetch the job info; %s", err.Error())
 	}
@@ -225,6 +226,9 @@ func getLatestBuild(ctx context.Context, client *http.Client, baseURL string) (s
 	}
 
 	defer resp.Body.Close()
+	if err = checkHTTPStatusCode(resp); err != nil {
+		return "", fmt.Errorf("latest build request failed; %w", err)
+	}
 
 	latestBuildBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -233,18 +237,21 @@ func getLatestBuild(ctx context.Context, client *http.Client, baseURL string) (s
 	return string(latestBuildBytes), nil
 }
 
-func getBuildStatus(ctx context.Context, latestBuild string, baseURL string) (*finished, error) {
+func getBuildStatus(ctx context.Context, client *http.Client, latestBuild string, baseURL string) (*finished, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s/finished.json", baseURL, latestBuild), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	finishedResp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	finishedResp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
 
 	defer finishedResp.Body.Close()
+	if err = checkHTTPStatusCode(finishedResp); err != nil {
+		return nil, fmt.Errorf("failed to get finished response; %w", err)
+	}
 
 	f := &finished{}
 	dec := json.NewDecoder(finishedResp.Body)
@@ -254,18 +261,21 @@ func getBuildStatus(ctx context.Context, latestBuild string, baseURL string) (*f
 	return f, nil
 }
 
-func getJob(ctx context.Context, latestBuild string, baseURL string) (string, error) {
+func getJob(ctx context.Context, client *http.Client, latestBuild string, baseURL string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s/prowjob.json", baseURL, latestBuild), nil)
 	if err != nil {
 		return "", err
 	}
 
-	jobResp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	jobResp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return "", err
 	}
 
 	defer jobResp.Body.Close()
+	if err = checkHTTPStatusCode(jobResp); err != nil {
+		return "", fmt.Errorf("failed to get job details; %w", err)
+	}
 
 	job := struct {
 		Status struct {
@@ -278,4 +288,13 @@ func getJob(ctx context.Context, latestBuild string, baseURL string) (string, er
 		return "", err
 	}
 	return job.Status.URL, nil
+}
+
+func checkHTTPStatusCode(resp *http.Response) error {
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("HTTP status is not OK; %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	return nil
 }
